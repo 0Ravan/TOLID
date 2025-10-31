@@ -397,6 +397,9 @@
             animation: fadeIn 0.3s;
         }
         .details-content h4 { grid-column: 1 / -1; margin-top:0; color: var(--tracking-color); border-bottom: 1px solid var(--tracking-color); padding-bottom: 10px; }
+        .details-content h5 {
+             margin-top: 15px; margin-bottom: 5px; color: var(--text-secondary); font-size: 15px;
+        }
         .stage-checklist { list-style: none; padding: 0; margin: 0; }
         .stage-checklist li { display: flex; align-items: center; font-size: 16px; margin-bottom: 12px; }
         .stage-checklist input[type="checkbox"] { 
@@ -930,8 +933,14 @@
         CANCELLED: 'ابطال'
     };
     const PRODUCTION_STAGES = {
-        preparation: 'آماده سازی', patternMaking: 'الگو سازی', cutting: 'برش', sewing: 'دوخت',
-        printing: 'چاپ و پرس', ironing: 'اتوکاری', packaging: 'بسته بندی', outsourcing: 'برون سپاری'
+        preparationPattern: 'آماده سازی و الگو',
+        cutting: 'برش',
+        sewing: 'دوخت',
+        ironing: 'اتو',
+        qualityControl: 'کنترل کیفی',
+        outsourcing: 'برون سپاری',
+        stoneWashing: 'سنگ شوری',
+        packaging: 'بسته بندی'
     };
     let manualOrderItems = [];
     let currentFilteredBatches = [];
@@ -989,7 +998,7 @@
                     renderPrintingView();
                     break;
                 case 'trackingView':
-                    renderTrackingView();
+                    renderTrackingView(true); // Keep details open during sync
                     break;
                 case 'inventoryView':
                     renderInventoryView();
@@ -1009,6 +1018,12 @@
             elements.authContainer.style.display = 'none';
             elements.userEmail.textContent = user.email;
             onSnapshot(dbDocRef, (doc) => {
+                if (doc.metadata.hasPendingWrites) {
+                    // This change is from a local write, and the UI has already been updated
+                    // by the event handler that triggered the write. We ignore this snapshot
+                    // to prevent a jarring full re-render that would close UI elements like modals or details panels.
+                    return;
+                }
                 if (doc.exists()) {
                     initializeAppWithData(doc.data());
                 } else {
@@ -1201,9 +1216,15 @@
     elements.fileList.addEventListener('click', (e) => {
         const fileId = e.target.dataset.id; if (!fileId) return;
         if (e.target.textContent === 'حذف') {
+             const fileToDelete = appState.files[fileId];
+             if (!fileToDelete) {
+                showToast('این فایل دیگر وجود ندارد. لیست به‌روزرسانی شد.', 'error');
+                renderDashboard();
+                return;
+             }
              showConfirmationModal(
                 'تایید حذف فایل',
-                `آیا از حذف فایل <strong>"${appState.files[fileId].name}"</strong> و تمام سوابق آن اطمینان دارید؟`,
+                `آیا از حذف فایل <strong>"${fileToDelete.name}"</strong> و تمام سوابق آن اطمینان دارید؟`,
                 () => {
                     delete appState.files[fileId];
                     appState.productionLog = appState.productionLog.filter(log => log.sourceFileId !== fileId);
@@ -1554,6 +1575,12 @@
     // --- Processing View Logic (File based) ---
     const renderProcessingView = () => {
         const file = appState.files[appState.activeFileId];
+        if (!file) {
+            showToast('فایل انتخاب شده یافت نشد. بازگشت به داشبورد...', 'error');
+            showView('dashboardView');
+            renderDashboard();
+            return;
+        }
         elements.processingFileName.textContent = `پردازش فایل: (${file.shortId}) ${file.name}`;
         const tasks = file.tasks;
         const groups = [...new Set(tasks.map(t=>t.productGroup))];
@@ -1673,7 +1700,6 @@
         });
         
         let rawMaterialsHTML = '<h5>موجودی مواد اولیه</h5>';
-        let hasRawMaterialsWarning = false;
         if(Object.keys(neededMaterials).length === 0){
              rawMaterialsHTML += '<p>نیازی به مواد اولیه جدید نیست یا استاندارد مصرف تعریف نشده است.</p>';
         } else {
@@ -1685,7 +1711,6 @@
                 const deficit = needed - available;
                  if (deficit > 0) {
                     rawMaterialsHTML += `<p><strong>${name} - ${color}:</strong> نیاز: ${needed.toFixed(2)} ${unit} | موجودی: ${available} ${unit} | <span class="low-inventory">کسری: ${deficit.toFixed(2)} ${unit}</span></p>`;
-                    hasRawMaterialsWarning = true;
                 } else {
                     rawMaterialsHTML += `<p><strong>${name} - ${color}:</strong> نیاز: ${needed.toFixed(2)} ${unit} | موجودی: ${available} ${unit} | <span style="color: var(--success-color);">تامین</span></p>`;
                 }
@@ -1752,10 +1777,18 @@
     // --- Report View Logic ---
     const renderReportView = () => {
         const logs = appState.productionLog;
-        const allFiles = Object.values(appState.files).map(f => ({id: f.id, name: `(${f.shortId}) ${f.name}`}));
-        allFiles.push({id: 'manual', name: 'کارمزدی'});
-        elements.reportFileFilter.innerHTML = '<option value="">همه فایل‌ها</option>' + allFiles.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+        const allFileIdsInLog = [...new Set(logs.map(l => l.sourceFileId))];
+        const allFiles = allFileIdsInLog.map(id => {
+            if (id === 'manual') {
+                return { id: 'manual', name: 'کارمزدی' };
+            }
+            const file = appState.files[id];
+            if (!file) return null;
+            return { id: file.id, name: `(${file.shortId}) ${file.name}` };
+        }).filter(Boolean);
 
+        elements.reportFileFilter.innerHTML = '<option value="">همه فایل‌ها</option>' + allFiles.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+        
         const allGroups = [...new Set(logs.map(l => l.productGroup))];
         elements.reportGroupFilter.innerHTML = '<option value="">همه گروه‌ها</option>' + allGroups.map(g => `<option>${g}</option>`).join('');
         
@@ -2072,7 +2105,11 @@
                 const day = document.querySelector(`.multi-batch-day[data-group-key="${groupKey}"]`).value;
                 const month = document.querySelector(`.multi-batch-month[data-group-key="${groupKey}"]`).value;
                 const year = document.querySelector(`.multi-batch-year[data-group-key="${groupKey}"]`).value;
-                const batchCode = document.querySelector(`.multi-batch-code-input[data-group-key="${groupKey}"]`).value;
+                
+                // Generate a fresh, unique code for each group upon confirmation
+                const batchType = (groupKey === 'هودی' || groupKey === 'بامبر' || groupKey === 'دورس') ? 'K' : 'A';
+                const batchCode = generateBatchCode(batchType, false);
+
                 if (!day || !month || !year || !batchCode) { allValid = false; return; }
                 
                 batchData[groupKey] = {
@@ -2087,7 +2124,7 @@
                 const logIdsInGroup = currentBatchAssignment.groups[groupKey];
                 
                 if(!appState.productionBatches[data.batchCode]){
-                    appState.productionBatches[data.batchCode] = { code: data.batchCode, creationDate: new Date().toISOString(), deliveryDate: data.deliveryDate, status: 'inprogress', logIds: logIdsInGroup, stages: {}, productGroup: groupKey };
+                    appState.productionBatches[data.batchCode] = { code: data.batchCode, creationDate: new Date().toISOString(), deliveryDate: data.deliveryDate, status: 'inprogress', logIds: logIdsInGroup, stages: {}, productGroup: groupKey, manualMaterials: [] };
                 } else {
                     appState.productionBatches[data.batchCode].logIds.push(...logIdsInGroup);
                 }
@@ -2107,7 +2144,7 @@
             if (!day || !month || !year) { showToast('لطفا تاریخ تحویل را کامل مشخص کنید.', 'error'); return; }
             const deliveryDate = `${year}/${month}/${day}`; const batchCode = elements.batchCodeInput.value;
             
-            appState.productionBatches[batchCode] = { code: batchCode, creationDate: new Date().toISOString(), deliveryDate, status: 'inprogress', logIds: currentBatchAssignment.logIds, stages: {}, productGroup: Object.keys(currentBatchAssignment.groups)[0] };
+            appState.productionBatches[batchCode] = { code: batchCode, creationDate: new Date().toISOString(), deliveryDate, status: 'inprogress', logIds: currentBatchAssignment.logIds, stages: {}, productGroup: Object.keys(currentBatchAssignment.groups)[0], manualMaterials: [] };
             currentBatchAssignment.logIds.forEach(logId => {
                 const log = appState.productionLog.find(l => l.logId === logId);
                 if (log) {
@@ -2154,9 +2191,16 @@
     // --- Printing View Logic ---
     const renderPrintingView = () => {
         const printingItems = appState.productionLog.filter(log => log.status === STATUSES.PRINTING || log.status === STATUSES.PRINTED);
-        const allFiles = [...new Set(printingItems.map(item => item.sourceFileId))].map(id => {
-            return id === 'manual' ? {id: 'manual', name: 'کارمزدی'} : {id, name: `(${appState.files[id]?.shortId}) ${appState.files[id]?.name}`};
-        });
+        const allFileIds = [...new Set(printingItems.map(item => item.sourceFileId))];
+        const allFiles = allFileIds.map(id => {
+            if (id === 'manual') {
+                return {id: 'manual', name: 'کارمزدی'};
+            }
+            const file = appState.files[id];
+            if (!file) return null;
+            return {id, name: `(${file.shortId}) ${file.name}`};
+        }).filter(Boolean);
+
         elements.printingFileFilter.innerHTML = '<option value="">همه فایل‌ها</option>' + allFiles.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         const allGroups = [...new Set(printingItems.map(item => item.productGroup))];
         elements.printingGroupFilter.innerHTML = '<option value="">همه گروه‌ها</option>' + allGroups.map(g => `<option>${g}</option>`).join('');
@@ -2320,7 +2364,6 @@
         if(!keepOpenDetails) {
             openTrackingDetails.clear();
         }
-        currentFilteredBatches = Object.values(appState.productionBatches);
         applyTrackingFilters(true);
     };
 
@@ -2356,7 +2399,7 @@
         </tr></thead><tbody>`;
         if (batches.length > 0) {
             batches.forEach(batch => {
-                const totalQuantity = batch.logIds.reduce((sum, id) => {
+                const totalQuantity = (batch.logIds || []).reduce((sum, id) => {
                     const log = appState.productionLog.find(l => l.logId === id);
                     return sum + (log ? log.quantity : 0);
                 }, 0);
@@ -2397,10 +2440,58 @@
     };
 
     const renderBatchDetails = (batch) => {
-        const batchItems = batch.logIds.map(id => appState.productionLog.find(l => l.logId === id)).filter(Boolean);
-        let itemsHTML = '<div style="max-height: 200px; overflow-y: auto; margin-bottom: 20px;"><ul>';
+        const batchItems = (batch.logIds || []).map(id => appState.productionLog.find(l => l.logId === id)).filter(Boolean);
+        let itemsHTML = '<div style="max-height: 250px; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border-color); padding: 10px; border-radius: 8px;"><ul>';
         batchItems.forEach(item => { itemsHTML += `<li>${item.productName} - ${item.color} - ${item.size} (تعداد: ${item.quantity})</li>`; });
         itemsHTML += '</ul></div>';
+
+        let standardMaterialsHTML = '<ul>';
+        const neededMaterials = {};
+        batchItems.forEach(item => {
+            const bomForGroup = appState.bom[item.productGroup];
+            if (bomForGroup) {
+                Object.keys(bomForGroup).forEach(materialName => {
+                    Object.keys(bomForGroup[materialName]).forEach(materialColor => {
+                        const consumption = bomForGroup[materialName][materialColor];
+                        const key = `${materialName}|${materialColor}`;
+                        neededMaterials[key] = (neededMaterials[key] || 0) + (item.quantity * consumption);
+                    });
+                });
+            }
+        });
+
+        if (Object.keys(neededMaterials).length > 0) {
+            Object.keys(neededMaterials).forEach(key => {
+                const [name, color] = key.split('|');
+                const needed = neededMaterials[key];
+                const unit = appState.materials[name]?.[color]?.unit || '';
+                standardMaterialsHTML += `<li>${name} - ${color}: ${needed.toFixed(2)} ${unit}</li>`;
+            });
+        } else {
+            standardMaterialsHTML += '<li>استاندارد مصرفی برای این گروه محصول تعریف نشده است.</li>';
+        }
+        standardMaterialsHTML += '</ul>';
+
+        let manualMaterialsHTML = `<div id="manualMaterialsList-${batch.code}">`;
+        if (batch.manualMaterials && batch.manualMaterials.length > 0) {
+            manualMaterialsHTML += '<ul>';
+            batch.manualMaterials.forEach((mat, index) => {
+                manualMaterialsHTML += `<li>${mat.name} (${mat.color}): ${mat.quantity} ${mat.unit} <button class="btn-danger btn-sm" data-action="deleteManualMaterial" data-batch-code="${batch.code}" data-index="${index}">X</button></li>`;
+            });
+            manualMaterialsHTML += '</ul>';
+        } else {
+            manualMaterialsHTML += '<p>هیچ خرج کاری ثبت نشده است.</p>';
+        }
+        manualMaterialsHTML += '</div>';
+
+        const manualAddForm = `
+            <div class="filters" style="padding: 10px; margin-top: 15px; display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 10px;">
+                <input type="text" id="manualMatName-${batch.code}" placeholder="نام خرج کار" style="padding: 8px;">
+                <input type="text" id="manualMatColor-${batch.code}" placeholder="رنگ" style="padding: 8px;">
+                <input type="number" id="manualMatQty-${batch.code}" placeholder="مقدار" style="padding: 8px;">
+                <input type="text" id="manualMatUnit-${batch.code}" placeholder="واحد" style="padding: 8px;">
+                <button class="btn-secondary btn-sm" data-action="addManualMaterial" data-batch-code="${batch.code}" style="padding: 8px 12px;">افزودن</button>
+            </div>`;
         
         let checklistHTML = '<ul class="stage-checklist">';
         Object.keys(PRODUCTION_STAGES).forEach(stageKey => {
@@ -2408,16 +2499,33 @@
         });
         checklistHTML += '</ul>';
 
-        return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                    <div><h4>آیتم‌های بچ</h4>${itemsHTML}</div>
-                    <div><h4>مراحل تولید</h4>${checklistHTML}</div>
+        return `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px;">
+                    <div>
+                        <h4>آیتم‌های بچ</h4>
+                        ${itemsHTML}
+                        <h4>مراحل تولید</h4>
+                        ${checklistHTML}
+                    </div>
+                    <div>
+                        <h4>مصرف مواد اولیه</h4>
+                        <div style="border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; background: var(--bg-primary);">
+                            <h5>استاندارد</h5>
+                            ${standardMaterialsHTML}
+                            <h5 style="margin-top: 20px;">خرج کار دستی</h5>
+                            ${manualMaterialsHTML}
+                            ${manualAddForm}
+                        </div>
+                    </div>
                 </div>`;
     };
 
+
     elements.batchTrackingTableContainer.addEventListener('click', (e) => {
-        if(e.target.tagName !== 'BUTTON') return;
-        const action = e.target.dataset.action;
-        const batchCode = e.target.closest('tr').dataset.batchCode;
+        const targetButton = e.target.closest('button');
+        if(!targetButton) return;
+
+        const action = targetButton.dataset.action;
+        const batchCode = targetButton.closest('tr[data-batch-code]')?.dataset.batchCode || targetButton.dataset.batchCode;
         if (!batchCode) return;
         
         switch(action) {
@@ -2438,7 +2546,7 @@
                         batch.completionDate = new Date().toISOString();
                         Object.keys(PRODUCTION_STAGES).forEach(stage => batch.stages[stage] = true); // Check all stages
                         
-                        batch.logIds.forEach(logId => {
+                        (batch.logIds || []).forEach(logId => {
                             const log = appState.productionLog.find(l => l.logId === logId);
                             if(log) log.status = STATUSES.DONE;
                         });
@@ -2454,8 +2562,8 @@
                     const batch = appState.productionBatches[batchCode];
                     if(batch){
                         batch.status = 'cancelled';
-                        batch.logIds.forEach(logId => {
-                            const log = appState.productionLog.find(l => l.logId === id);
+                        (batch.logIds || []).forEach(logId => {
+                            const log = appState.productionLog.find(l => l.logId === logId);
                             if(log) log.status = STATUSES.CANCELLED;
                         });
                         saveState();
@@ -2476,7 +2584,7 @@
                 showConfirmationModal('حذف کد بچ', `آیا از حذف کد بچ "${batchCode}" از آیتم‌های مرتبط اطمینان دارید؟ وضعیت آیتم‌ها به "درحال انجام" بازمی‌گردد.`, () => {
                     const batch = appState.productionBatches[batchCode];
                     if (batch) {
-                        batch.logIds.forEach(logId => {
+                        (batch.logIds || []).forEach(logId => {
                             const log = appState.productionLog.find(l => l.logId === logId);
                             if (log) {
                                 log.batchCode = null;
@@ -2499,11 +2607,42 @@
                 if(batch) printBatch(batch);
                 break;
             }
+            case 'addManualMaterial': {
+                const name = document.getElementById(`manualMatName-${batchCode}`).value.trim();
+                const color = document.getElementById(`manualMatColor-${batchCode}`).value.trim();
+                const quantity = parseFloat(document.getElementById(`manualMatQty-${batchCode}`).value);
+                const unit = document.getElementById(`manualMatUnit-${batchCode}`).value.trim();
+
+                if (name && !isNaN(quantity) && quantity > 0 && unit) {
+                    const batch = appState.productionBatches[batchCode];
+                    if (batch) {
+                        if (!batch.manualMaterials) batch.manualMaterials = [];
+                        batch.manualMaterials.push({ name, color: color || 'نامشخص', quantity, unit });
+                        saveState();
+                        const detailsContent = document.querySelector(`.details-row[data-details-for="${batchCode}"] .details-content`);
+                        if (detailsContent) detailsContent.innerHTML = renderBatchDetails(batch);
+                    }
+                } else {
+                    showToast('لطفا نام، مقدار و واحد خرج کار را به درستی وارد کنید.', 'error');
+                }
+                break;
+            }
+            case 'deleteManualMaterial': {
+                const index = parseInt(targetButton.dataset.index, 10);
+                const batch = appState.productionBatches[batchCode];
+                if (batch && batch.manualMaterials?.[index]) {
+                    batch.manualMaterials.splice(index, 1);
+                    saveState();
+                    const detailsContent = document.querySelector(`.details-row[data-details-for="${batchCode}"] .details-content`);
+                    if (detailsContent) detailsContent.innerHTML = renderBatchDetails(batch);
+                }
+                break;
+            }
         }
     });
 
     const printBatch = (batch) => {
-        const batchItems = batch.logIds.map(id => appState.productionLog.find(l => l.logId === id)).filter(Boolean);
+        const batchItems = (batch.logIds || []).map(id => appState.productionLog.find(l => l.logId === id)).filter(Boolean);
         
         const aggregatedItems = {};
         batchItems.forEach(item => {
@@ -2526,6 +2665,33 @@
             checklistContent += `<li><span class="checkbox"></span>${stageName}</li>`;
         });
         checklistContent += '</ul></div>';
+        
+        // Materials Content
+        let materialsContent = '<h4>مصرف مواد</h4>';
+        const neededMaterials = {};
+        batchItems.forEach(item => {
+            const bomForGroup = appState.bom[item.productGroup];
+            if (bomForGroup) {
+                Object.keys(bomForGroup).forEach(mName => Object.keys(bomForGroup[mName]).forEach(mColor => {
+                    const key = `${mName}|${mColor}`;
+                    neededMaterials[key] = (neededMaterials[key] || 0) + (item.quantity * bomForGroup[mName][mColor]);
+                }));
+            }
+        });
+        materialsContent += '<h5>استاندارد</h5><ul>';
+        Object.keys(neededMaterials).forEach(key => {
+            const [name, color] = key.split('|');
+            materialsContent += `<li>${name} - ${color}: ${neededMaterials[key].toFixed(2)} ${appState.materials[name]?.[color]?.unit || ''}</li>`;
+        });
+        materialsContent += '</ul>';
+        if (batch.manualMaterials && batch.manualMaterials.length > 0) {
+            materialsContent += '<h5>خرج کار دستی</h5><ul>';
+            batch.manualMaterials.forEach(mat => {
+                materialsContent += `<li>${mat.name} (${mat.color}): ${mat.quantity} ${mat.unit}</li>`;
+            });
+            materialsContent += '</ul>';
+        }
+
 
         const printWindow = window.open('', '', 'height=800,width=1000');
         printWindow.document.write(`
@@ -2537,9 +2703,10 @@
                 h1 { text-align: center; font-size: 32px; margin-bottom: 5px; }
                 .batch-code { text-align: center; font-size: 64px; font-weight: bold; margin: 10px 0 30px; letter-spacing: 2px; }
                 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 18px; }
-                table { width: 100%; border-collapse: collapse; font-size: 16px; }
+                table { width: 100%; border-collapse: collapse; font-size: 16px; margin-bottom: 20px; }
                 th, td { border: 1px solid #ccc; padding: 12px; text-align: right; }
                 th { background-color: #f2f2f2; }
+                ul { padding-right: 20px; }
                 .main-content { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; }
                 .checklist ul { list-style: none; padding: 0; }
                 .checklist li { font-size: 18px; margin-bottom: 15px; display: flex; align-items: center; }
@@ -2557,6 +2724,7 @@
                         <div>
                            <h4>لیست آیتم‌ها</h4>
                            ${itemsContent}
+                           ${materialsContent}
                         </div>
                         ${checklistContent}
                     </div>
@@ -2574,13 +2742,11 @@
             const batch = appState.productionBatches[batchCode];
             if (batch) {
                 batch.stages[stage] = e.target.checked;
-                // Check if all stages are completed
-                const allStagesChecked = Object.keys(PRODUCTION_STAGES).every(s => batch.stages[s]);
-                if (allStagesChecked && batch.status !== 'completed') {
-                    // This logic is now handled by the complete button
-                }
                 saveState();
-                renderTrackingView(true); // Re-render keeping details open
+                // We no longer need to call renderTrackingView(true) here,
+                // because the onSnapshot listener is now ignored for local writes,
+                // so the details panel will not be closed by a full re-render.
+                // The checkbox state is visually updated by the browser instantly.
             }
         }
     });
@@ -2595,7 +2761,7 @@
 
     elements.exportTrackingBtn.addEventListener('click', () => {
         const dataToExport = currentFilteredBatches.map(batch => {
-             const totalQuantity = batch.logIds.reduce((sum, id) => {
+             const totalQuantity = (batch.logIds || []).reduce((sum, id) => {
                 const log = appState.productionLog.find(l => l.logId === id);
                 return sum + (log ? log.quantity : 0);
             }, 0);
