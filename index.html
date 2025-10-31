@@ -1831,9 +1831,14 @@
                 let mainStatus = log.status;
                 let printingStatus = '';
                 if (log.status === STATUSES.PRINTING || log.status === STATUSES.PRINTED) {
-                    mainStatus = STATUSES.IN_PROGRESS;
                     printingStatus = log.status;
+                    if (log.batchCode) {
+                        mainStatus = STATUSES.IN_PRODUCTION;
+                    } else {
+                        mainStatus = STATUSES.IN_PROGRESS;
+                    }
                 }
+                
                 const statusClass = getStatusClass(log.status);
                 const mainStatusBadge = getStatusBadge(mainStatus);
                 const printingStatusBadge = printingStatus ? getStatusBadge(printingStatus) : '';
