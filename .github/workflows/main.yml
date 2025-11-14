@@ -1,0 +1,46 @@
+name: Build and Deploy to GitHub Pages
+
+# این اکشن زمانی اجرا می‌شود که به برنچ main پوش کنید
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # از یک سرور لینوکس برای بیلد استفاده کن
+    steps:
+      # 1. کد شما را از گیت‌هاب دانلود می‌کند
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. نود (Node.js) را نصب می‌کند چون Vite به آن نیاز دارد
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # استفاده از نسخه ۱۸ نود
+
+      # 3. فایل .env را با استفاده از Secrets که در مرحله ۱ ساختید، ایجاد می‌کند
+      - name: Create .env file
+        run: |
+          echo VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }} >> .env
+          echo VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }} >> .env
+          echo VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }} >> .env
+          echo VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }} >> .env
+          echo VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }} >> .env
+          echo VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }} >> .env
+
+      # 4. وابستگی‌های پروژه (مثل Vite و Firebase) را نصب می‌کند
+      - name: Install dependencies
+        run: npm install
+
+      # 5. کارخانه را اجرا می‌کند (Vite build)
+      # این همان مرحله‌ای است که import.meta.env را با کلیدها جایگزین می‌کند
+      - name: Build project
+        run: npm run build
+
+      # 6. محصول نهایی (پوشه dist) را به یک برنچ جدید به نام gh-pages منتقل می‌کند
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist # پوشه‌ای که Vite می‌سازد
