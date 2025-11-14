@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد مدیریت تولید پیشرفته</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Firebase SDK -->
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --primary-glow: rgba(0, 170, 255, 0.5);
+            --primary-color: #00aaff;
+            --primary-hover: #007fbf;
+            --secondary-color: #8a94a6;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #e63946;
+            --commission-color: #fd7e14;
+            --tracking-color: #9d4edd;
+            --inventory-color: #20c997;
+            --materials-color: #d63384;
+            
+            --bg-primary: #11131e;
+            --bg-secondary: #1c1f2e;
+            --bg-tertiary: #2a2d3e;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-primary: #f0f2f5;
+            --text-secondary: #adb5bd;
+            
+            --font-main: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        @keyframes backgroundPan { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        * {
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-color) var(--bg-primary);
+        }
+
+        *::-webkit-scrollbar { width: 8px; }
+
+        *::-webkit-scrollbar-track { background: var(--bg-primary); }
+
+        *::-webkit-scrollbar-thumb { background-color: var(--primary-color); border-radius: 10px; border: 2px solid var(--bg-primary); }
+
+        body { 
+            font-family: var(--font-main); 
+            background: var(--bg-primary);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #2a2d3e 100%);
+            animation: backgroundPan 30s linear infinite;
+            margin: 0; 
+            padding: 20px; 
+            color: var(--text-primary); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+        }
+
+        .container { 
+            max-width: 1600px; 
+            margin: auto; 
+            background: var(--bg-secondary); 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); 
+            border: 1px solid var(--border-color);
+            width: 100%;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        h1, h2, h3 { 
+            color: var(--text-primary); 
+            border-bottom: 2px solid var(--primary-color); 
+            padding-bottom: 12px; 
+            margin-top: 20px; 
+        }
+
+        h1 { font-size: 28px; font-weight: 600; }
+
+        h2 { font-size: 24px; font-weight: 500; }
+
+        h3 { font-size: 20px; margin-top: 30px; border-color: var(--secondary-color); font-weight: 500;}
+
+        button { 
+            font-family: var(--font-main); 
+            color: white; 
+            padding: 12px 24px; 
+            border: 1px solid transparent; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            margin: 5px; 
+            transition: all 0.3s ease;
+            background-color: transparent;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            z-index: -1;
+            transition: transform 0.3s ease;
+            transform: scale(1);
+        }
+
+        button:hover:before {
+            transform: scale(1.05);
+        }
+
+        button:hover {
+            box-shadow: 0 0 15px var(--primary-glow);
+            border-color: var(--primary-color);
+            transform: translateY(-3px);
+        }
+
+        button:disabled {
+            background-color: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.5;
+            border-color: transparent;
+        }
+
+        .btn-primary { border-color: var(--primary-color); color: var(--primary-color); }
+
+        .btn-primary:hover { background-color: var(--primary-color); color: white; box-shadow: 0 0 20px var(--primary-glow); }
+
+        .btn-danger { border-color: var(--danger-color); color: var(--danger-color); }
+
+        .btn-danger:hover { background-color: var(--danger-color); color: white; box-shadow: 0 0 20px rgba(230, 57, 70, 0.5); }
+
+        .btn-success { border-color: var(--success-color); color: var(--success-color); }
+
+        .btn-success:hover { background-color: var(--success-color); color: white; }
+
+        .btn-warning { border-color: var(--warning-color); color: var(--warning-color); }
+
+        .btn-warning:hover { background-color: var(--warning-color); color: var(--bg-primary); }
+
+        .btn-commission { border-color: var(--commission-color); color: var(--commission-color); }
+
+        .btn-commission:hover { background-color: var(--commission-color); color: white; }
+
+        .btn-tracking { border-color: var(--tracking-color); color: var(--tracking-color); }
+
+        .btn-tracking:hover { background-color: var(--tracking-color); color: white; }
+
+        .btn-inventory { border-color: var(--inventory-color); color: var(--inventory-color); }
+
+        .btn-inventory:hover { background-color: var(--inventory-color); color: var(--bg-primary); }
+
+        .btn-materials { border-color: var(--materials-color); color: var(--materials-color); }
+
+        .btn-materials:hover { background-color: var(--materials-color); color: white; }
+
+        .btn-secondary { border-color: var(--secondary-color); color: var(--secondary-color); }
+
+        .btn-secondary:hover { background-color: var(--secondary-color); color: white; }
+
+        .hidden { display: none; }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            font-size: 14px; 
+        }
+
+        th, td { 
+            padding: 14px; 
+            text-align: right; 
+            border-bottom: 1px solid var(--border-color); 
+            vertical-align: middle; 
+            transition: background-color 0.3s ease;
+        }
+
+        th { 
+            background-color: rgba(0, 170, 255, 0.1);
+            color: var(--primary-color); 
+            font-weight: 600;
+            position: sticky; 
+            top: 0; 
+            z-index: 10;
+        }
+
+        tr:hover td { background-color: rgba(255, 255, 255, 0.05); }
+
+        .page-view { 
+            margin-top: 30px; 
+            border-top: 1px solid var(--border-color); 
+            padding-top: 20px; 
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .file-list-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 15px; 
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color); 
+            border-radius: 10px; 
+            margin-bottom: 12px; 
+            transition: all 0.3s ease;
+        }
+
+        .file-list-item:hover {
+            transform: translateX(-5px);
+            border-color: var(--primary-color);
+        }
+
+        .filters, .bulk-update { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 20px; 
+            margin-bottom: 20px; 
+            padding: 20px; 
+            background: rgba(0,0,0,0.2); 
+            border-radius: 10px; 
+            align-items: center; 
+        }
+
+        .filters label { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+
+        .filters select, .filters input, .bulk-update select, .bulk-update button, #manualForm input, #manualForm select, textarea { 
+            padding: 12px; 
+            font-size: 15px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            font-family: var(--font-main); 
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .filters select:focus, .filters input:focus, .bulk-update select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .status-ready { background-color: rgba(108, 117, 125, 0.1); }
+
+        .status-inprogress { background-color: rgba(255, 193, 7, 0.1); }
+
+        .status-inproduction { background-color: rgba(157, 78, 221, 0.1); }
+
+        .status-printing { background-color: rgba(13, 202, 240, 0.1); }
+
+        .status-printed { background-color: rgba(23, 162, 184, 0.2); }
+
+        .status-done { background-color: rgba(25, 135, 84, 0.1); }
+
+        .status-cancelled { background-color: rgba(220, 53, 69, 0.1); text-decoration: line-through; color: var(--text-secondary); }
+
+        .summary-cards { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 20px; 
+            margin-top: 20px; 
+        }
+
+        .card { 
+            background: var(--bg-tertiary); 
+            padding: 25px; 
+            border-radius: 12px; 
+            text-align: center; 
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .card:before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; width: 100%; height: 4px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .card h4 { margin: 0 0 15px; font-size: 16px; color: var(--text-secondary); font-weight: 500;}
+
+        .card .count { font-size: 36px; font-weight: 700; color: var(--text-primary); }
+
+        .card-total:before { background: var(--primary-color); }
+
+        .card-ready:before { background: var(--secondary-color); }
+
+        .card-inprogress:before { background: var(--warning-color); }
+
+        .card-done:before { background: var(--success-color); }
+
+        .nav-buttons { 
+            margin-bottom: 25px; 
+            border-bottom: 1px solid var(--border-color); 
+            padding-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #auth-container { max-width: 400px; margin: auto; }
+
+        #app-container { display: none; }
+
+        .auth-form { display: flex; flex-direction: column; gap: 20px; }
+
+        .auth-form input { padding: 14px; font-size: 16px; border: 1px solid var(--border-color); border-radius: 8px; background-color: var(--bg-tertiary); color: var(--text-primary); }
+
+        .auth-toggle { text-align: center; margin-top: 20px; color: var(--primary-color); cursor: pointer; font-weight: 500;}
+
+        #user-info { display: flex; align-items: center; gap: 15px; font-size: 14px; color: var(--text-secondary); }
+
+        #logoutBtn { font-size: 13px; padding: 6px 12px; border-color: var(--danger-color); color: var(--danger-color); }
+
+        #logoutBtn:hover { background-color: var(--danger-color); color: white; }
+
+        /* Modal Styles */
+
+        .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background-color: rgba(0,0,0,0.7); 
+            backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center; 
+            z-index: 2000; opacity: 0; 
+            transition: opacity 0.3s; pointer-events: none; 
+        }
+
+        .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
+
+        .modal-content {
+            background: var(--bg-secondary); 
+            padding: 35px; border-radius: 16px; 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-color);
+            width: 90%; max-width: 650px; 
+            transform: scale(0.95); transition: transform 0.3s;
+            display: flex; flex-direction: column; max-height: 90vh;
+        }
+
+        .modal-overlay:not(.hidden) .modal-content { transform: scale(1); }
+
+        .modal-content h3 { flex-shrink: 0; margin-top: 0; border-color: var(--primary-color); }
+
+        .modal-content p { margin: 15px 0; line-height: 1.7; color: var(--text-secondary); }
+
+        .modal-buttons { text-align: left; margin-top: 30px; }
+
+        .modal-form-group { margin: 20px 0; }
+
+        .modal-form-group label { display: block; margin-bottom: 10px; font-weight: 600; color: var(--text-primary); }
+
+        .modal-form-group input, .modal-form-group select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); box-sizing: border-box; font-family: var(--font-main); font-size: 15px; background: var(--bg-tertiary); color: var(--text-primary); }
+
+        .modal-form-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        #batchGroupWarning {
+            background: rgba(255, 193, 7, 0.1); 
+            border: 1px solid var(--warning-color); 
+            border-radius: 10px; padding: 15px; 
+        }
+
+        #batchGroupWarning ul { padding-right: 20px; margin: 10px 0 0; }
+
+        #manualForm { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; }
+
+        /* Edit Quantity Modal specific styles */
+
+        #editQuantityModal .modal-content {
+            max-width: 1000px;
+            width: 90vw;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 30px;
+            height: 80vh;
+        }
+
+        #editQuantityModal h3 {
+             grid-column: 1 / -1;
+        }
+
+        #editQuantityList, .modal-right-panel {
+            grid-row: 2 / 3;
+            overflow-y: auto;
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+        }
+
+        #editQuantityModal .modal-buttons {
+            grid-column: 1 / -1;
+            grid-row: 3 / 4;
+            margin-top: 0;
+            align-self: end;
+        }
+
+        #editQuantityList .modal-form-group { margin: 15px 0; }
+
+        #inventoryWarningContainer h4 {
+            margin-top: 0; color: var(--primary-color);
+        }
+
+        #inventoryWarningContainer h5 {
+            margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; font-size: 16px; color: var(--text-secondary);
+        }
+
+        #inventoryWarningContainer p { margin: 8px 0; font-weight: 500; font-size: 14px; }
+
+        .low-inventory { color: var(--danger-color); font-weight: bold; }
+
+        /* Tracking & Report View Styles */
+
+        .status-badge { padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600; color: white; display: inline-block; }
+
+        .status-badge-completed { background-color: var(--success-color); }
+
+        .status-badge-inprogress { background-color: var(--warning-color); color: var(--bg-primary); }
+
+        .status-badge-cancelled { background-color: var(--danger-color); }
+
+        .status-badge-printing, .status-badge-tracking { background-color: var(--tracking-color); }
+
+        .status-badge-printed { background-color: var(--primary-hover); }
+
+        .status-badge-ready { background-color: var(--secondary-color); }
+
+        .details-row { display: none; }
+
+        .details-row.visible { display: table-row; }
+
+        .details-cell { padding: 0 !important; }
+
+        .details-content { 
+            background-color: var(--bg-primary); 
+            padding: 25px; 
+            border: 2px solid var(--tracking-color); 
+            animation: fadeIn 0.3s;
+        }
+
+        .details-content h4 { grid-column: 1 / -1; margin-top:0; color: var(--tracking-color); border-bottom: 1px solid var(--tracking-color); padding-bottom: 10px; }
+
+        .details-content h5 {
+             margin-top: 15px; margin-bottom: 5px; color: var(--text-secondary); font-size: 15px;
+        }
+
+        .stage-checklist { list-style: none; padding: 0; margin: 0; }
+
+        .stage-checklist li { display: flex; align-items: center; font-size: 16px; margin-bottom: 12px; }
+
+        .stage-checklist input[type="checkbox"] { 
+            width: 22px; height: 22px; margin-left: 15px; cursor: pointer; 
+            appearance: none; background: var(--bg-tertiary); border: 2px solid var(--border-color); border-radius: 5px;
+            transition: all 0.2s;
+        }
+
+        .stage-checklist input[type="checkbox"]:checked {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        #batchTrackingTableContainer table td button { padding: 6px 12px; font-size: 13px; }
+
+        .has-batch-code { background-color: rgba(157, 78, 221, 0.1) !important; }
+
+        .upload-area { 
+            border: 2px dashed var(--border-color); 
+            padding: 30px; border-radius: 12px; 
+            text-align: center; margin-top: 20px; 
+            background-color: rgba(0,0,0,0.2); 
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background-color: var(--bg-tertiary);
+        }
+
+        .upload-area label {
+             border-style: solid;
+             background-color: var(--bg-tertiary);
+        }
+
+        #dataManagement { 
+            border-top: 1px solid var(--border-color); 
+            margin-top: 20px; padding-top: 20px; 
+            display: flex; gap: 10px; justify-content: flex-end; align-items: center; 
+        }
+
+        .batch-group-item {
+            background-color: var(--bg-tertiary);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .batch-group-item h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .batch-group-item .modal-form-group {
+            margin: 0;
+        }
+        
+    </style>
+  <script type="module" crossorigin src="/assets/index-CubGFsLP.js"></script>
+</head>
+<body>
+    
+    <div id="auth-container">
+        <div class="container" style="max-width: 450px;">
+            <h2 id="authTitle">ورود به داشبورد</h2>
+            <div id="login-form" class="auth-form">
+                <input type="email" id="loginEmail" placeholder="ایمیل" required>
+                <input type="password" id="loginPassword" placeholder="رمز عبور" required>
+                <button id="loginBtn" class="btn-primary" style="width: 100%; margin-top: 10px; background-color: var(--primary-color); color: white;">ورود</button>
+            </div>
+            <div id="signup-form" class="auth-form hidden">
+                 <input type="email" id="signupEmail" placeholder="ایمیل" required>
+                <input type="password" id="signupPassword" placeholder="رمز عبور" required>
+                <button id="signupBtn" class="btn-primary" style="width: 100%; margin-top: 10px; background-color: var(--primary-color); color: white;">ثبت نام</button>
+            </div>
+             <p id="auth-toggle" class="auth-toggle">حساب کاربری ندارید؟ ثبت نام کنید</p>
+        </div>
+    </div>
+    
+    <div id="app-container" class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>داشبورد مدیریت تولید</h1>
+             <div id="user-info">
+                <span id="userEmail"></span>
+                <button id="logoutBtn">خروج</button>
+            </div>
+        </div>
+        <div id="dataManagement">
+             <input type="file" id="importFile" class="hidden" accept=".json">
+             <button id="exportDataBtn" class="btn-secondary">تهیه نسخه پشتیبان (Backup)</button>
+             <button id="importDataBtn" class="btn-secondary">بازیابی اطلاعات (Restore)</button>
+        </div>
+        
+        <div class="nav-buttons">
+            <button id="showDashboardBtn" class="btn-primary">مدیریت فایل‌ها</button>
+            <button id="showManualProductionBtn" class="btn-commission">تولید کارمزدی</button>
+            <button id="showReportBtn" class="btn-success">گزارش جامع</button>
+            <button id="showPrintingBtn" class="btn-inventory">در دست چاپ</button>
+            <button id="showTrackingBtn" class="btn-tracking">رهگیری تولید</button>
+            <button id="showInventoryBtn" class="btn-inventory">موجودی‌ها</button>
+            <button id="showMaterialsBtn" class="btn-materials">استاندارد مواد</button>
+        </div>
+
+        <div id="dashboardView" class="page-view">
+            <h2>بارگذاری و انتخاب فایل</h2>
+            <div class="upload-area" style="border-color: var(--primary-color);">
+                <input type="file" id="excelFile" class="hidden" accept=".xls,.xlsx,.csv" multiple>
+                <label for="excelFile" class="btn-primary">بارگذاری فایل (های) جدید</label>
+            </div>
+            <div id="fileList" style="margin-top: 20px;"></div>
+        </div>
+
+        <div id="materialsView" class="page-view hidden">
+            <h2>مدیریت مواد اولیه و استاندارد مصرف</h2>
+             <div class="upload-area" style="border-color: var(--materials-color); margin-bottom: 30px;">
+                <input type="file" id="materialsExcelFile" class="hidden" accept=".xls,.xlsx,.csv">
+                <label for="materialsExcelFile" class="btn-materials">بارگذاری/افزودن اکسل مواد اولیه</label>
+                 <p style="color: var(--text-secondary); font-size: 14px; margin-top: 10px;">فایل باید شامل ستون‌های 'نام مواد اولیه'، 'رنگ'، 'مقدار' و 'واحد سنجش' باشد. مقادیر به موجودی فعلی اضافه می‌شوند.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+                <div>
+                    <h3>تعریف/افزودن دستی مواد اولیه</h3>
+                    <div class="filters">
+                        <input type="text" id="materialName" placeholder="نام ماده اولیه" style="flex-grow: 2;">
+                        <input type="text" id="materialColor" placeholder="رنگ ماده اولیه">
+                        <input type="number" id="materialStock" placeholder="مقدار برای افزودن" min="0">
+                         <select id="materialUnit">
+                            <option value="">-- واحد --</option>
+                            <option>عدد</option>
+                            <option>کیلوگرم</option>
+                            <option>گرم</option>
+                            <option>بسته</option>
+                            <option>طاقه</option>
+                            <option>متر</option>
+                            <option>سانتی متر</option>
+                        </select>
+                        <button id="addMaterialBtn" class="btn-primary">افزودن</button>
+                    </div>
+                    <div id="materialsTableContainer" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+                <div>
+                    <h3>تعریف استاندارد مصرف (به ازای هر واحد محصول)</h3>
+                     <div class="filters">
+                        <select id="bomGroupSelect" style="flex-grow: 1;"></select>
+                        <select id="bomMaterialSelect" style="flex-grow: 1;"></select>
+                        <select id="bomMaterialColorSelect" style="flex-grow: 1;"></select>
+                        <input type="number" id="bomConsumptionInput" placeholder="میزان مصرف" min="0" step="0.1">
+                        <button id="addBomBtn" class="btn-materials">ثبت استاندارد</button>
+                    </div>
+                    <div id="bomTableContainer" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="inventoryView" class="page-view hidden">
+            <h2>مدیریت موجودی محصولات آماده</h2>
+            <div class="upload-area" style="border-color: var(--inventory-color);">
+                 <input type="file" id="inventoryExcelFile" class="hidden" accept=".xls,.xlsx,.csv">
+                <label for="inventoryExcelFile" class="btn-inventory">بارگذاری/افزودن فایل موجودی</label>
+                <p style="color: var(--text-secondary); font-size: 14px; margin-top: 10px;">فایل اکسل باید شامل ستون‌های 'نام آیتم' و 'تعداد (- استرداد)' باشد. مقادیر به موجودی فعلی اضافه/کسر می‌شوند.</p>
+            </div>
+            <div id="inventoryTableContainer" style="margin-top: 20px;"></div>
+        </div>
+
+        <div id="manualProductionView" class="page-view hidden">
+            <h2>ایجاد دستور تولید دستی (کارمزدی)</h2>
+            <form id="manualForm" class="filters">
+                <input type="text" id="manualProductName" placeholder="نام محصول">
+                <input type="text" id="manualSku" placeholder="کد طرح">
+                <input type="text" id="manualColor" placeholder="رنگ">
+                <select id="manualSize">
+                    <option value="">-- سایز --</option>
+                    <option>S</option><option>M</option><option>L</option><option>XL</option>
+                    <option>2XL</option><option>3XL</option><option>XS</option><option>تک سایز</option>
+                </select>
+                <input type="number" id="manualQuantity" placeholder="تعداد" min="1">
+                 <select id="manualGroup">
+                    <option value="">-- گروه محصول --</option>
+                    <option>هودی</option><option>تیشرت</option><option>بامبر</option>
+                    <option>دورس</option><option>شلوار</option><option>سویشرت</option><option>سایر</option>
+                </select>
+                <button type="button" id="addItemToManualListBtn" class="btn-primary" style="grid-column: 1 / -1;">افزودن آیتم</button>
+            </form>
+            <div id="manualItemsContainer" style="margin-top: 30px;">
+                 <h3>لیست آیتم‌های دستور تولید فعلی</h3>
+                 <div id="manualItemsTableContainer" style="max-height: 400px; overflow-y: auto;"><p>هنوز آیتمی اضافه نشده است.</p></div>
+            </div>
+            <div class="bulk-update" style="margin-top: 20px;">
+                <button id="saveManualOrderBtn" class="btn-success">ذخیره و ارسال به گزارش جامع</button>
+                <button id="clearManualOrderBtn" class="btn-danger">پاک کردن لیست فعلی</button>
+            </div>
+        </div>
+
+        <div id="processingView" class="page-view hidden">
+            <button id="backToDashboard" class="btn-secondary">بازگشت به لیست فایل‌ها</button>
+            <h2 id="processingFileName"></h2>
+            <h3>فیلتر و صدور دستور تولید</h3>
+            <div class="filters">
+                <label>گروه محصول: <select id="groupFilter"><option value="">همه</option></select></label>
+                <label>فیلتر رنگ: <select id="colorFilter"><option value="">همه</option></select></label>
+                <label>فیلتر سایز: <select id="sizeFilter"><option value="">همه</option></select></label>
+                <label>وضعیت: <select id="processingStatusFilter">
+                    <option value="">همه</option>
+                    <option>آماده تولید</option>
+                    <option>درحال انجام</option>
+                    <option>در دست چاپ</option>
+                    <option>چاپ شده</option>
+                    <option>انجام شده</option>
+                    <option>ابطال</option>
+                </select></label>
+                <button id="clearProcessingFiltersBtn" class="btn-secondary" style="margin-right: auto;">پاک کردن فیلترها</button>
+            </div>
+            <div class="bulk-update">
+                <span>عملیات گروهی (برای موارد انتخابی):</span>
+                <button id="createProductionOrderBtn" class="btn-success">صدور دستور تولید</button>
+            </div>
+            <div id="summaryCards" class="summary-cards"></div>
+            <div id="tasksTableContainer" style="max-height: 600px; overflow-y: auto;"></div>
+        </div>
+
+        <div id="reportView" class="page-view hidden">
+            <h2>بایگانی و رهگیری دستورات تولید</h2>
+             <div class="filters">
+                <label>فیلتر فایل: <select id="reportFileFilter"><option value="">همه فایل‌ها</option></select></label>
+                <label>فیلتر وضعیت: <select id="reportStatusFilter">
+                    <option value="">همه وضعیت‌ها</option>
+                    <option value="درحال انجام">درحال انجام</option>
+                    <option value="در حال تولید">در حال تولید</option>
+                    <option value="در دست چاپ">در دست چاپ</option>
+                    <option value="چاپ شده">چاپ شده</option>
+                    <option value="انجام شده">انجام شده</option>
+                    <option value="ابطال">ابطال</option>
+                </select></label>
+                <label>گروه محصول: <select id="reportGroupFilter"><option value="">همه گروه‌ها</option></select></label>
+                <label>فیلتر رنگ: <select id="reportColorFilter"><option value="">همه رنگ‌ها</option></select></label>
+                <label>فیلتر سایز: <select id="reportSizeFilter"><option value="">همه سایزها</option></select></label>
+                <label>کد طرح: <input type="text" id="reportSkuSearch" placeholder="جستجوی کد طرح..."></label>
+                <label>کد بچ: <input type="text" id="reportBatchSearch" placeholder="جستجوی کد بچ..."></label>
+                <label>وضعیت کدبچ: 
+                    <select id="reportBatchFilter">
+                        <option value="">همه</option>
+                        <option value="assigned">کد بچ دار</option>
+                        <option value="unassigned">بدون کد بچ</option>
+                    </select>
+                </label>
+                <button id="clearReportFiltersBtn" class="btn-secondary" style="margin-right: auto;">پاک کردن فیلترها</button>
+            </div>
+            <div class="bulk-update">
+                <span>عملیات گروهی (برای موارد انتخابی):</span>
+                <label>تغییر به: <select id="reportToStatus">
+                    <option value="آماده تولید">بازگشت به آماده تولید</option>
+                    <option value="درحال انجام">درحال انجام</option>
+                    <option value="در حال تولید">در حال تولید</option>
+                    <option value="در دست چاپ">در دست چاپ</option>
+                    <option value="چاپ شده">چاپ شده</option>
+                    <option value="انجام شده">انجام شده</option>
+                    <option value="ابطال">ابطال</option>
+                </select></label>
+                <button id="reportBulkUpdateBtn" class="btn-warning">اعمال تغییر</button>
+                <button id="sendToPrintingBtn" class="btn-inventory">ارسال برای چاپ</button>
+                <button id="assignBatchCodeBtn" class="btn-primary">اختصاص کد بچ</button>
+                <button id="exportReportBtn" class="btn-success">خروجی اکسل</button>
+            </div>
+            <div id="reportSummaryCards" class="summary-cards"></div>
+            <div id="reportTableContainer" style="max-height: 700px; overflow-y: auto;"></div>
+        </div>
+        
+        <div id="printingView" class="page-view hidden">
+            <h2>مدیریت اقلام در دست چاپ</h2>
+             <div class="filters">
+                <label>فیلتر فایل: <select id="printingFileFilter"><option value="">همه فایل‌ها</option></select></label>
+                <label>گروه محصول: <select id="printingGroupFilter"><option value="">همه گروه‌ها</option></select></label>
+                <label>فیلتر رنگ: <select id="printingColorFilter"><option value="">همه رنگ‌ها</option></select></label>
+                <label>فیلتر سایز: <select id="printingSizeFilter"><option value="">همه سایزها</option></select></label>
+                <button id="clearPrintingFiltersBtn" class="btn-secondary" style="margin-right: auto;">پاک کردن فیلترها</button>
+            </div>
+            <div class="bulk-update">
+                <span>عملیات گروهی (برای موارد انتخابی):</span>
+                <button id="printingBulkUpdateBtn" class="btn-warning">تغییر وضعیت به چاپ شده</button>
+                <button id="exportPrintingBtn" class="btn-success">خروجی اکسل</button>
+                <button id="printPrintingBtn" class="btn-primary">چاپ لیست</button>
+            </div>
+            <div id="printingSummaryCards" class="summary-cards"></div>
+            <div id="printingTableContainer" style="max-height: 700px; overflow-y: auto;"></div>
+        </div>
+
+        <div id="trackingView" class="page-view hidden">
+            <h2>رهگیری مراحل تولید</h2>
+            <div class="filters">
+                <input type="text" id="trackingSearchInput" placeholder="جستجو بر اساس کد بچ...">
+                <label>تاریخ ایجاد: <input type="date" id="trackingDateFilter"></label>
+                <label>گروه محصول: <select id="trackingGroupFilter"><option value="">همه</option></select></label>
+                <label>وضعیت: <select id="trackingStatusFilter"><option value="">همه</option><option value="completed">تکمیل شده</option><option value="inprogress">درحال انجام</option><option value="cancelled">کنسل شده</option></select></label>
+                <button id="clearTrackingFiltersBtn" class="btn-secondary">پاک کردن فیلترها</button>
+                <button id="exportTrackingBtn" class="btn-success" style="margin-right: auto;">خروجی اکسل</button>
+            </div>
+            <div id="batchTrackingTableContainer" style="max-height: 700px; overflow-y: auto;">
+                <!-- Tracking table will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmationModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="modalTitle"></h3>
+            <p id="modalMessage"></p>
+            <div class="modal-buttons">
+                <button id="modalConfirmBtn" class="btn-danger">تایید</button>
+                <button id="modalCancelBtn" class="btn-secondary">لغو</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="assignBatchModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="assignBatchModalTitle">اختصاص کد بچ و زمان تحویل</h3>
+            
+            <div id="multiBatchAssignmentContainer" class="hidden">
+                <div id="batchAssignmentList" style="max-height: 400px; overflow-y: auto; margin-top: 15px; padding-right: 10px;">
+                    <!-- JS will inject content here -->
+                </div>
+            </div>
+            
+            <div id="singleBatchAssignmentContainer">
+                <p>یک کد بچ برای آیتم‌های انتخابی وارد کرده و تاریخ تحویل را مشخص کنید.</p>
+                <div id="batchGroupWarning" class="modal-form-group hidden"></div>
+                <div class="modal-form-row">
+                    <div class="modal-form-group" style="margin: 0;">
+                        <label for="batchCodeInput">کد بچ/سری:</label>
+                        <input type="text" id="batchCodeInput" placeholder="کد به صورت خودکار تولید می‌شود" readonly>
+                    </div>
+                     <div class="modal-form-group" style="margin: 0;">
+                        <label>تاریخ تحویل:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="batchDeliveryDay" style="width: 100%;"><option value="">روز</option></select>
+                            <select id="batchDeliveryMonth" style="width: 100%;"><option value="">ماه</option></select>
+                            <select id="batchDeliveryYear" style="width: 100%;"><option value="">سال</option></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button id="batchConfirmBtn" class="btn-success">تایید و اختصاص کد</button>
+                <button id="batchCancelBtn" class="btn-secondary">لغو</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editQuantityModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>تغییر تعداد برای دستور تولید</h3>
+            
+            <!-- Left Panel: The scrollable list -->
+            <div id="editQuantityList">
+                <!-- Dynamic content will be injected here -->
+            </div>
+            
+            <!-- Right Panel: Info and warnings -->
+            <div class="modal-right-panel">
+                <div id="inventoryWarningContainer">
+                    <h4>آنالیز پیش از تولید</h4>
+                    <div id="finishedGoodsWarning">
+                         <h5>موجودی محصول آماده</h5>
+                    </div>
+                    <div id="rawMaterialsWarning">
+                         <h5>موجودی مواد اولیه</h5>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Buttons spanning both columns -->
+            <div class="modal-buttons">
+                <p>تعداد مورد نظر برای ارسال به خط تولید را مشخص کنید. مابقی در لیست "آماده تولید" باقی خواهد ماند.</p>
+                <button id="quantityConfirmBtn" class="btn-success">تایید و ارسال</button>
+                <button id="quantityCancelBtn" class="btn-secondary">لغو</button>
+            </div>
+        </div>
+    </div>
+
+
+</body>
+</html>
